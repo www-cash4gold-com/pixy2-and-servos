@@ -1,0 +1,164 @@
+
+#include <Servo.h>
+Servo trigger;
+Servo finger; //
+Servo rotatewrist;//
+Servo wrist;//
+Servo elbow;//
+Servo shoulder;// up is forward
+Servo rotateshoulder;//
+Servo catapult;//
+
+
+
+
+#include <Pixy2.h>
+#include <PIDLoop.h>
+Pixy2 pixy;
+// start with 0,0,0 and increment the P up, ie: 100,0,0 until you get oscillations. 
+// When you do, increase the D, IE: 100,0,100 until the oscillations stop. 
+// Inrease P again and do this until the arm behavior suits your need and risk toleance. 
+PIDLoop panLoop(100,0,500, true);
+PIDLoop tiltLoop(25, 0, 400, true);
+
+
+
+
+//*****************************************************************************************************
+// Take the biggest block (blocks[0]) that's been around for at least 30 frames (1/2 second)
+// and return its index, otherwise return -1
+int16_t acquireBlock()
+{
+  if (pixy.ccc.numBlocks && pixy.ccc.blocks[0].m_age > 30)
+    return pixy.ccc.blocks[0].m_index;
+
+  return -1;
+}
+
+// Find the block with the given index.  In other words, find the same object in the current
+// frame -- not the biggest object, but he object we've locked onto in acquireBlock()
+// If it's not in the current frame, return NULL
+Block *trackBlock(uint8_t index)
+{
+  uint8_t i;
+
+  for (i = 0; i < pixy.ccc.numBlocks; i++)
+  {
+    if (index == pixy.ccc.blocks[i].m_index)
+      return &pixy.ccc.blocks[i];
+  }
+
+  return NULL;
+}
+
+void setup()
+{
+  Serial.begin(115300);                                  // Serial 0 is for communication with the serial monitor
+  Serial1.begin(9600);
+
+  finger.attach(8);
+  rotatewrist.attach(3);
+  wrist.attach(4);
+  //READ THIS: the 2 servos listed directly below (elbow & shoulder) are high power and had a 0-270 range, the 2 lines below restrict the movement to 0-180 or so. 
+  // I commented them and added 2 new lines below them for normal servos so it does not give you errors. 
+  //These lines will help if you upgrade servos. 
+ // elbow.attach(5,1200,1800);
+ // shoulder.attach(6,1200,1800);
+ elbow.attach(5);
+ shoulder.attach(6);
+  catapult.attach(45);
+  trigger.attach(46);
+  rotateshoulder.attach(7);
+  rotateshoulder.write(90);
+  catapult.write(90);// is this forward facing?
+  finger.write(110);
+  rotatewrist.write(90);
+  wrist.write(145);
+  elbow.write(130);
+  shoulder.write(90);
+  rotateshoulder.write(90);
+  
+  // We need to initialize the pixy object
+  pixy.init();
+
+  // Use color connected components program for the pan tilt to track
+  pixy.changeProg("color_connected_components");
+  // initialize digital pin 12 as an output (red pin)
+
+}
+
+
+//*****************************************************************************************************
+// Main Loop
+
+void loop()
+{
+
+    
+  // set the cursor to column 0, line 1
+
+
+
+  static int i = 0;
+  int j;
+  char buf[64];
+  int32_t panOffset, tiltOffset;
+
+  // get active blocks from Pixy
+  pixy.ccc.getBlocks();
+
+  if (pixy.ccc.numBlocks)
+  {
+    i++;
+
+    if (i % 60 == 0)
+      Serial.println(i);
+
+    // calculate pan and tilt "errors" with respect to first object (blocks[0]),
+    // which is the biggest object (they are sorted by size).
+    panOffset = (int32_t)pixy.frameWidth / 2 - (int32_t)pixy.ccc.blocks[0].m_x;
+    tiltOffset = (int32_t)pixy.ccc.blocks[0].m_y - (int32_t)pixy.frameHeight / 2;
+
+    // update loops
+    panLoop.update(panOffset);
+    tiltLoop.update(tiltOffset);
+
+    // set pan and tilt servos
+
+// left some mapping function commented if you wanna try it out, I never got it working
+//panLoop.m_command = map(panLoop.m_command,0,500,0,180);
+//tiltLoop.m_command = map(tiltLoop.m_command,0,1000,0,180);
+// the output of panLoop.m_command was 0-1000, which didn't work for a 0 - 180 servo. / by 5.556 to get the 0-180 range. 
+      Serial.println(panLoop.m_command/5.556);
+      delay(20);
+   rotateshoulder.write(panLoop.m_command/5.556);
+// left a few samples below if you want ot reuse
+//   elbow.write(tiltLoop.m_command/5.556);
+//    wrist.write(tiltLoop.m_command/5.556);
+//    shoulder.write(tiltLoop.m_command/5.556);
+
+          Serial.println(panLoop.m_command);
+
+          #if 0 // for debugging
+    sprintf(buf, "%ld %ld %ld %ld", rotateLoop.m_command, translateLoop.m_command, left, right);
+    Serial.println(buf);
+#endif
+
+  }
+  else // no object detected, go into reset state
+  {
+    panLoop.reset();
+    tiltLoop.reset();
+    // below is the stadnard arm position, it can correct back to this quickly when pixy loses track so be careful.
+      rotateshoulder.write(90);
+  finger.write(110);
+  rotatewrist.write(90);
+  wrist.write(120);
+  elbow.write(130);
+ // shoulder.write(20);
+
+  }
+}
+
+
+
