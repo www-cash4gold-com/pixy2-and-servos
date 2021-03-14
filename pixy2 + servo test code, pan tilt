@@ -17,7 +17,7 @@ Servo catapult;//
 Pixy2 pixy;
 // start with 0,0,0 and increment the P up, ie: 100,0,0 until you get oscillations. 
 // When you do, increase the D, IE: 100,0,100 until the oscillations stop. 
-// Inrease P again and do this until the arm behavior suits your need and risk toleance. 
+// Inrease P again and do this until the arm behavior suits your need and risk tolerance. 
 PIDLoop panLoop(100,0,500, true);
 PIDLoop tiltLoop(25, 0, 400, true);
 
